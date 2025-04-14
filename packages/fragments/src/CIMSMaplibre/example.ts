@@ -12,7 +12,7 @@ import * as OBC from '@thatopen/components';
 import * as BUI from '@thatopen/ui';
 import Stats from 'stats.js';
 // You have to import * as FRAGS from "@thatopen/fragments"
-import * as FRAGS from '..';
+import * as FRAGS from '../FragmentsModels';
 import maplibregl, { LngLatLike, CustomLayerInterface } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -70,8 +70,6 @@ world.scene.three.add(axesHelper);
   ### 🛠️ Setting Up Fragments
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
 */
-
-const groups = new THREE.Group();
 
 // You can copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path of the worker, or fetch it from github, unpkg, etc.
@@ -174,7 +172,10 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       if (ids.includes(id)) {
         await disposeModels([id]);
       } else {
-        await loadFragmentFile(`../../../../resources/frags/${id}.frag`, id);
+        await loadFragmentFile(
+          `../../../../resources/private/frags/${id}.frag`,
+          id
+        );
       }
       target.loading = false;
     };
@@ -200,13 +201,16 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
     };
 
     const buildings: Bldg[] = [
-      { id: 'school_arq', name: 'Architecture' },
-      { id: 'school_mep', name: 'MEP' },
-      { id: 'school_str', name: 'Structural' },
+      { id: 'AA', name: 'Architecture Building' },
+      { id: 'BB', name: 'Bronson Substation' },
+      { id: 'CB', name: 'Canal Building' },
+      { id: 'NB', name: 'Nicol Building' },
+      { id: 'PA', name: 'Paterson Hall' },
+      { id: 'VS', name: 'VISIM Building' },
     ];
 
-    function onMapRefresh() {
-      console.log('Refreshing map...'); // Placeholder for map refresh logic
+    function onAddToMap() {
+      console.log('Add to map');
     }
 
     return BUI.html`
@@ -227,7 +231,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
             `;
           })}
           <div style="display: flex; gap: 0.25rem">
-                <bim-button data-name='MAP' label='Load in Map' icon='lucide:map-pinned' @click=${onMapRefresh}></bim-button>
+                <bim-button data-name='MAP' label='Load in Map' icon='lucide:map-pinned' @click=${onAddToMap}></bim-button>
               </div>
           <bim-button ?disabled=${ids.length === 0} label="Remove All" @click=${onDisposeModels}></bim-button>
         </bim-panel-section>
@@ -292,8 +296,7 @@ const loadModel = async (coords: LngLatLike) => {
 
   const maplibre = new maplibregl.Map({
     container: 'map', // container id
-    style:
-      'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+    style: '../../../../resources/private/styles/satellite.json',
     center: coords,
     zoom: 16,
     pitch: 45,

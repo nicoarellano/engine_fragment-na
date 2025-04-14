@@ -7,11 +7,11 @@
   First things first, let's install all necessary dependencies to make this example work:
 */
 
-import * as OBC from "@thatopen/components";
-import * as BUI from "@thatopen/ui";
-import Stats from "stats.js";
+import * as OBC from '@thatopen/components';
+import * as BUI from '@thatopen/ui';
+import Stats from 'stats.js';
 // You have to import * as FRAGS from "@thatopen/fragments"
-import * as FRAGS from "../..";
+import * as FRAGS from '../..';
 
 /* MD
   ### 🌎 Setting up a Simple Scene
@@ -31,7 +31,7 @@ world.scene = new OBC.SimpleScene(components);
 world.scene.setup();
 world.scene.three.background = null;
 
-const container = document.getElementById("container")!;
+const container = document.getElementById('container')!;
 world.renderer = new OBC.SimpleRenderer(components, container);
 
 world.camera = new OBC.SimpleCamera(components);
@@ -54,17 +54,45 @@ grids.create(world);
   */
 
 const serializer = new FRAGS.IfcImporter();
-serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.68/" };
+serializer.wasm = { absolute: true, path: 'https://unpkg.com/web-ifc@0.0.68/' };
 // A convenient variable to hold the ArrayBuffer data loaded into memory
 let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
 
+// const fileName = 'CANAL IFC4 - full_phase 1';
+// const fileName = 'PATERSON HALL';
+// const fileName = 'BLDG-22 IFC4';
+// const fileName = 'CDC-CIMS-FEDERATED_BLDGS-SUST-CIMS-DOC-BLDG_22-AS_FOUND-IFC4';
+const fileName = 'bro';
+
+let ifcFileSize: number;
+let fragmentFileSize: number;
+let startDate: string;
+let finishDate: string;
+let conversionTime: number;
+let reportLabel: string;
+
 const convertIFC = async () => {
-  const url = "https://thatopen.github.io/engine_fragment/resources/ifc/school_str.ifc";
+  const url = `../../../../../resources/ifc/${fileName}.ifc`;
+  startDate = new Date().toLocaleString();
+  // console.log(`🔃 Loading ${fileName}.ifc at ⏳ ${startDate} `);
+  const startTime = performance.now();
   const ifcFile = await fetch(url);
+  const fileSizeInBytes = parseInt(
+    ifcFile.headers.get('content-length') || '0',
+    10
+  );
+  ifcFileSize = (fileSizeInBytes / (1024 * 1024)).toFixed(2);
+  // console.log(`📦 IFC File size: ${ifcFileSize} MB`);
   const ifcBuffer = await ifcFile.arrayBuffer();
   const ifcBytes = new Uint8Array(ifcBuffer);
   fragmentBytes = await serializer.process({ bytes: ifcBytes });
+  finishDate = new Date().toLocaleString();
+  // console.log(`🏁 Conversion finished for ${fileName}.ifc at ⌛ ${finishDate}`);
+  const finishTime = performance.now();
+  conversionTime = ((finishTime - startTime) / 1000).toFixed(2);
+  // console.log(`⏱️ Conversion time: ${conversionTime} seconds`);
+  loadModel();
   onConversionFinish();
 };
 
@@ -76,28 +104,47 @@ const convertIFC = async () => {
 // You can copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path of the worker, or fetch it from github, unpkg, etc.
 const workerUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+  'https://thatopen.github.io/engine_fragment/resources/worker.mjs';
 const fetchedWorker = await fetch(workerUrl);
 const workerText = await fetchedWorker.text();
-const workerFile = new File([new Blob([workerText])], "worker.mjs", {
-  type: "text/javascript",
+const workerFile = new File([new Blob([workerText])], 'worker.mjs', {
+  type: 'text/javascript',
 });
 const url = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(url);
-world.camera.controls.addEventListener("rest", () => fragments.update(true));
-world.camera.controls.addEventListener("update", () => fragments.update());
+world.camera.controls.addEventListener('rest', () => fragments.update(true));
+world.camera.controls.addEventListener('update', () => fragments.update());
 
 /* MD
   ### Loading a Fragments Model 🚧
   With the core already set up, let's create a simple function to load the Fragments Model from the binary data and add it to the scene. This function ensures seamless integration of the converted model into our application:
 */
 
+async function createReport() {
+  reportLabel = `---------------------------------
+  ${fileName} has been converted to Fragments binary data and added to the scene!
+  ---------------------------------
+  📦 IFC file size: ${ifcFileSize} MB
+  📏 Fragment file size: ${fragmentFileSize} MB
+  --------------------------------
+  ⏳ Loaded at: ${startDate}
+  ⏳ Finished conversion at: ${finishDate}
+  ⏱️ Conversion time: ${conversionTime} seconds
+  `;
+  console.log(reportLabel);
+  return reportLabel;
+}
+
 const loadModel = async () => {
   if (!fragmentBytes) return;
-  const model = await fragments.load(fragmentBytes, { modelId: "example" });
+  const model = await fragments.load(fragmentBytes, { modelId: fileName });
+  fragmentFileSize = (fragmentBytes.byteLength / (1024 * 1024)).toFixed(2);
+  console.log(`📏 Fragment file size: ${fragmentFileSize} MB`);
   model.useCamera(world.camera.three);
   world.scene.three.add(model.object);
+  createReport();
   await fragments.update(true);
+  onDownload();
 };
 
 /* MD
@@ -105,7 +152,7 @@ const loadModel = async () => {
 */
 
 const removeModel = async () => {
-  await fragments.disposeModel("example");
+  await fragments.disposeModel(fileName);
 };
 
 /* MD
@@ -119,25 +166,27 @@ BUI.Manager.init();
 Now we will add some UI to handle the logic of this tutorial. For more information about the UI library, you can check the specific documentation for it!
 */
 
+function onDownload() {
+  if (!fragmentBytes) return;
+  const file = new File([fragmentBytes], `${fileName}.frag`);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file);
+  a.download = file.name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
   (_) => {
-    const onDownload = () => {
-      if (!fragmentBytes) return;
-      const file = new File([fragmentBytes], "sample.frag");
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(file);
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    };
-
     let content = BUI.html`
       <bim-label style="white-space: normal;">💡 Open the console to see more information</bim-label>
       <bim-button label="Load IFC" @click=${convertIFC}></bim-button>
     `;
     if (fragmentBytes) {
       content = BUI.html`
-        <bim-label style="white-space: normal;">🚀 The IFC has been converted to Fragments binary data. Add the model to the scene!</bim-label>
+        <bim-label style="white-space: normal;">
+        ${fileName} has been converted to Fragments binary data and added to the scene!
+        </bim-label>
         <bim-button label="Add Model" @click=${loadModel}></bim-button>
         <bim-button label="Remove Model" @click=${removeModel}></bim-button>
         <bim-button label="Download Fragments" @click=${onDownload}></bim-button>
@@ -152,7 +201,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
     </bim-panel>
   `;
   },
-  {},
+  {}
 );
 
 onConversionFinish = () => updatePanel();
@@ -166,10 +215,10 @@ document.body.append(panel);
 
 const button = BUI.Component.create<BUI.PanelSection>(() => {
   const onClick = () => {
-    if (panel.classList.contains("options-menu-visible")) {
-      panel.classList.remove("options-menu-visible");
+    if (panel.classList.contains('options-menu-visible')) {
+      panel.classList.remove('options-menu-visible');
     } else {
-      panel.classList.add("options-menu-visible");
+      panel.classList.add('options-menu-visible');
     }
   };
 
@@ -190,8 +239,8 @@ document.body.append(button);
 const stats = new Stats();
 stats.showPanel(2);
 document.body.append(stats.dom);
-stats.dom.style.left = "0px";
-stats.dom.style.zIndex = "unset";
+stats.dom.style.left = '0px';
+stats.dom.style.zIndex = 'unset';
 world.renderer.onBeforeUpdate.add(() => stats.begin());
 world.renderer.onAfterUpdate.add(() => stats.end());
 
