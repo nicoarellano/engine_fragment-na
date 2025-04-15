@@ -301,6 +301,10 @@ const loadModel = async (coords: LngLatLike) => {
     doubleClickZoom: false,
   });
 
+  if (maplibre.getLayer('3dmodel')) {
+    maplibre.removeLayer('3dmodel');
+  }
+
   const modelTransform = {
     translateX: modelAsMercatorCoordinate.x,
     translateY: modelAsMercatorCoordinate.y,
@@ -317,7 +321,6 @@ const loadModel = async (coords: LngLatLike) => {
   });
 
   const layerCamera = new THREE.Camera();
-  const layerScene = new THREE.Scene();
   const layerRenderer = new THREE.WebGLRenderer({
     canvas: maplibre.getCanvas(),
     context: maplibre.getCanvas().getContext('webgl') as WebGLRenderingContext,
@@ -330,6 +333,8 @@ const loadModel = async (coords: LngLatLike) => {
     type: 'custom',
     renderingMode: '3d',
     async onAdd() {
+      world.scene.three.add(axesHelper);
+      world.scene.three.add(redBox);
       layerRenderer.autoClear = false;
     },
     render(_, matrix) {
@@ -371,8 +376,6 @@ const loadModel = async (coords: LngLatLike) => {
 
       layerRenderer.resetState();
       // console.log(world.scene.three.children, layerCamera);
-      world.scene.three.add(axesHelper);
-      world.scene.three.add(redBox);
       layerRenderer.render(world.scene.three, layerCamera);
 
       maplibre.triggerRepaint();

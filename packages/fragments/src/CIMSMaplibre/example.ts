@@ -90,7 +90,9 @@ world.camera.controls.addEventListener('update', () => fragments.update());
 // Also, we add the model to the 3D scene.
 fragments.models.list.onItemSet.add(({ value: model }) => {
   model.useCamera(world.camera.three);
-  world.scene.three.add(model.object);
+  const geometry = model.object;
+  // geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([...]), 3)); // CHAT GPT SUGGESTED ADDING A POSITION ATTRIBUTE, DID NOT WORK
+  world.scene.three.add(geometry);
   // At the end, you tell fragments to update so the model can be seen given
   // the initial camera position
   fragments.update(true);
@@ -108,11 +110,14 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
 
   To make things more convenient, let's create a helper function that will load the Fragments Model from a given URL:
 */
+const models: FRAGS.FragmentsModel[] = [];
 
 const loadFragmentFile = async (url: string, id: string) => {
   const file = await fetch(url);
   const buffer = await file.arrayBuffer();
-  await fragments.load(buffer, { modelId: id });
+  const model = await fragments.load(buffer, { modelId: id });
+  models.push(model);
+  console.log(`Model ${id} loaded`, models);
 };
 
 /* MD
@@ -190,6 +195,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       const result = await getBinaryData(id);
       if (result) {
         const { name, buffer } = result;
+
         const a = document.createElement('a');
         const file = new File([buffer], `${name}.frag`);
         a.href = URL.createObjectURL(file);
@@ -304,6 +310,10 @@ const loadModel = async (coords: LngLatLike) => {
     doubleClickZoom: false,
   });
 
+  if (maplibre.getLayer('3dmodel')) {
+    maplibre.removeLayer('3dmodel');
+  }
+
   const modelTransform = {
     translateX: modelAsMercatorCoordinate.x,
     translateY: modelAsMercatorCoordinate.y,
@@ -320,7 +330,7 @@ const loadModel = async (coords: LngLatLike) => {
   });
 
   const layerCamera = new THREE.Camera();
-  const layerScene = new THREE.Scene();
+
   const layerRenderer = new THREE.WebGLRenderer({
     canvas: maplibre.getCanvas(),
     context: maplibre.getCanvas().getContext('webgl') as WebGLRenderingContext,
@@ -328,14 +338,19 @@ const loadModel = async (coords: LngLatLike) => {
     alpha: true,
   });
 
+  let childrenCount = 0;
+  let prevChildrenCount = 0;
+
   const customLayer: CustomLayerInterface = {
     id: '3dmodel',
     type: 'custom',
     renderingMode: '3d',
     async onAdd() {
       layerRenderer.autoClear = false;
+      world.scene.three.add(axesHelper);
+      world.scene.three.add(redBox);
     },
-    render(_, matrix) {
+    async render(_, matrix) {
       const rotationX = new THREE.Matrix4().makeRotationAxis(
         new THREE.Vector3(1, 0, 0),
         modelTransform.rotateX
@@ -373,12 +388,18 @@ const loadModel = async (coords: LngLatLike) => {
         projectionMatrix.multiply(transformationMatrix);
 
       layerRenderer.resetState();
-      // console.log(world.scene.three.children, layerCamera);
-      world.scene.three.add(axesHelper);
-      world.scene.three.add(redBox);
-      layerRenderer.render(world.scene.three, layerCamera);
+
+      childrenCount = world.scene.three.children.length;
+      if (childrenCount > prevChildrenCount) {
+        fragments.update(true);
+      }
+
+      const scene = await world.scene.three;
+
+      layerRenderer.render(scene, layerCamera);
 
       maplibre.triggerRepaint();
+      prevChildrenCount = childrenCount;
     },
   };
 
