@@ -281,10 +281,11 @@ const latitude = 45.38476465194293;
 const longitude = -75.69496396358156;
 
 const coords: LngLatLike = [longitude, latitude];
-const altitude = 10;
+const altitude: number;
 const rotation = [Math.PI / 2, 0.75, 0];
 
 const loadModel = async (coords: LngLatLike) => {
+  altitude = maplibre.queryTerrainElevation(coords as number[]);
   const modelAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat(
     coords,
     altitude
@@ -375,7 +376,7 @@ const loadModel = async (coords: LngLatLike) => {
         projectionMatrix.multiply(transformationMatrix);
 
       layerRenderer.resetState();
-      // console.log(world.scene.three.children, layerCamera);
+      console.log('SCENE CHILDREN: ', world.scene.three.children);
       layerRenderer.render(world.scene.three, layerCamera);
 
       maplibre.triggerRepaint();
@@ -425,6 +426,9 @@ const loadModel = async (coords: LngLatLike) => {
   maplibre.on('style.load', () => {
     maplibre.addLayer(customLayer);
   });
+
+  const isLoaded = maplibre.isStyleLoaded();
+  if (isLoaded) maplibre.addLayer(customLayer);
 
   maplibre.on('load', async () => {
     setMarker(coords as number[]);

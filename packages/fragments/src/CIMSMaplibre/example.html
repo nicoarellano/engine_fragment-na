@@ -48,6 +48,28 @@
         overflow: hidden;
       }
 
+      #sliders-container {
+        position: absolute;
+        bottom: 1rem;
+        right: 0.5rem;
+        width: 180px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+
+      .slider-label {
+        background-color: rgba(255, 255, 255, 0.5);
+        padding: 0.4rem;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        margin: 0.3rem;
+        color: black;
+        font-weight: bold;
+      }
+
       .options-menu {
         position: fixed;
         min-width: unset;
@@ -87,5 +109,30 @@
     <div class="bim" id="container"></div>
     <div id="map"></div>
     <script type="module" src="./example.ts"></script>
+    <div id="sliders-container">
+      <label class="slider-label" id="angle-label">
+        IFC rotation: <span id="angle">0</span>°
+      </label>
+      <input
+        id="angle-slider"
+        type="range"
+        min="0"
+        max="360"
+        step="1"
+        value="0"
+        oninput="document.getElementById('angle').textContent = this.value"
+      />
+      <label class="slider-label" id="heigh-label">
+        IFC elev: <span id="height">0</span> mts
+      </label>
+      <input
+        id="height-slider"
+        type="range"
+        min="-100"
+        max="100"
+        step="01"
+        value="0"
+      />
+    </div>
   </body>
 </html>

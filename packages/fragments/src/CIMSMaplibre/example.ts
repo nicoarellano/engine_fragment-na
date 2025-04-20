@@ -13,7 +13,11 @@ import * as BUI from '@thatopen/ui';
 import Stats from 'stats.js';
 // You have to import * as FRAGS from "@thatopen/fragments"
 import * as FRAGS from '../FragmentsModels';
-import maplibregl, { LngLatLike, CustomLayerInterface } from 'maplibre-gl';
+import maplibregl, {
+  LngLatLike,
+  CustomLayerInterface,
+  SourceSpecification,
+} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 /* MD
@@ -44,9 +48,11 @@ world.scene.three.background = null;
 const container = document.getElementById('container')!;
 
 // Create a red box and add it to the scene
-const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+const scale = 10;
+const geometry = new THREE.BoxGeometry(scale, scale, scale);
 const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
 const redBox = new THREE.Mesh(geometry, material);
+redBox.position.setY(scale / 2);
 
 world.renderer = new OBC.SimpleRenderer(components, container);
 
@@ -56,23 +62,12 @@ world.camera.controls.setLookAt(183, 11, -102, 27, -52, -11); // convenient posi
 components.init();
 
 const grids = components.get(OBC.Grids);
-grids.create(world);
-world.scene.three.add(redBox);
+const grid = grids.create(world);
+grid.visible = false;
+const threeScene = world.scene.three.clone();
+grid.visible = true;
 world.scene.three.add(axesHelper);
 
-/* MD
-  :::info Do I need @thatopen/components?
-
-  Not necessarily! While @thatopen/components simplifies the process of setting up a scene, you can always use plain ThreeJS to create your own custom scene setup. It's entirely up to your preference and project requirements! 😉
-
-  :::
-
-  ### 🛠️ Setting Up Fragments
-  Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
-*/
-
-// You can copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
-// and provide the relative path of the worker, or fetch it from github, unpkg, etc.
 const workerUrl =
   'https://thatopen.github.io/engine_fragment/resources/worker.mjs';
 const fetchedWorker = await fetch(workerUrl);
@@ -85,16 +80,11 @@ const fragments = new FRAGS.FragmentsModels(url);
 world.camera.controls.addEventListener('rest', () => fragments.update(true));
 world.camera.controls.addEventListener('update', () => fragments.update());
 
-// Once a model is available in the list, we can tell what camera to use
-// in order to perform the culling and LOD operations.
-// Also, we add the model to the 3D scene.
-fragments.models.list.onItemSet.add(({ value: model }) => {
-  model.useCamera(world.camera.three);
+fragments.models.list.onItemSet.add(async ({ value: model }) => {
+  await model.useCamera(world.camera.three);
   const geometry = model.object;
   // geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([...]), 3)); // CHAT GPT SUGGESTED ADDING A POSITION ATTRIBUTE, DID NOT WORK
   world.scene.three.add(geometry);
-  // At the end, you tell fragments to update so the model can be seen given
-  // the initial camera position
   fragments.update(true);
 });
 
@@ -116,6 +106,8 @@ const loadFragmentFile = async (url: string, id: string) => {
   const file = await fetch(url);
   const buffer = await file.arrayBuffer();
   const model = await fragments.load(buffer, { modelId: id });
+  world.scene.three.add(model.object);
+  threeScene.add(model.object);
   models.push(model);
   console.log(`Model ${id} loaded`, models);
 };
@@ -209,10 +201,10 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
     const buildings: Bldg[] = [
       { id: 'AA', name: 'Architecture Building' },
       { id: 'BB', name: 'Bronson Substation' },
-      { id: 'CB', name: 'Canal Building' },
-      { id: 'NB', name: 'Nicol Building' },
+      // { id: 'CB', name: 'Canal Building' },
+      // { id: 'NB', name: 'Nicol Building' },
       { id: 'PA', name: 'Paterson Hall' },
-      { id: 'VS', name: 'VISIM Building' },
+      // { id: 'VS', name: 'VISIM Building' },
     ];
 
     function onAddToMap() {
@@ -236,9 +228,9 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
               </div>
             `;
           })}
-          <div style="display: flex; gap: 0.25rem">
+          <!-- <div style="display: flex; gap: 0.25rem">
                 <bim-button data-name='MAP' label='Load in Map' icon='lucide:map-pinned' @click=${onAddToMap}></bim-button>
-              </div>
+              </div> -->
           <bim-button ?disabled=${ids.length === 0} label="Remove All" @click=${onDisposeModels}></bim-button>
         </bim-panel-section>
       </bim-panel>
@@ -287,12 +279,67 @@ stats.dom.style.zIndex = 'unset';
 world.renderer.onBeforeUpdate.add(() => stats.begin());
 world.renderer.onAfterUpdate.add(() => stats.end());
 
-const latitude = 45.38476465194293;
-const longitude = -75.69496396358156;
+const carletonBB = {
+  lng: -75.69185223430395,
+  lat: 45.38636213794322,
+};
 
-const coords: LngLatLike = [longitude, latitude];
-const altitude = 10;
-const rotation = [Math.PI / 2, 0.75, 0];
+const carletonPA = {
+  lng: -75.69835199446455,
+  lat: 45.38152527897171,
+  angle: 35,
+  elevation: 5,
+};
+
+const location = carletonPA;
+
+const { lng, lat } = location;
+
+const coords: LngLatLike = [lng, lat];
+
+const maplibre = new maplibregl.Map({
+  container: 'map', // container id
+  style: '../../../../resources/private/styles/satellite.json',
+  center: location as LngLatLike,
+  zoom: 16,
+  pitch: 45,
+  bearing: 0,
+  canvasContextAttributes: { antialias: true },
+  attributionControl: false,
+  maplibreLogo: true,
+  doubleClickZoom: false,
+});
+
+const sceneOrigin = new maplibregl.LngLat(lng, lat);
+const modelLocation = new maplibregl.LngLat(lng, lat);
+// const threeCamera = world.camera.three as THREE.Camera;
+const trueNorhtInRadians = (location.angle ?? 0) * (Math.PI / 180);
+threeScene.rotateY(trueNorhtInRadians);
+threeScene.position.setY(location.elevation ?? 0);
+
+const layerRenderer = new THREE.WebGLRenderer({
+  canvas: maplibre.getCanvas(),
+  context: maplibre.getCanvas().getContext('webgl') as WebGLRenderingContext,
+  alpha: true,
+});
+
+let altitude = 0;
+let dynamicAltitude = 0;
+
+const heightSlider = document.getElementById(
+  'height-slider'
+) as HTMLInputElement;
+
+const altitudeLabel = document.getElementById('height') as HTMLLabelElement;
+heightSlider.addEventListener('input', () => {
+  dynamicAltitude = parseFloat(heightSlider.value);
+  altitudeLabel.textContent = dynamicAltitude.toString();
+});
+
+const popup = new maplibregl.Popup({
+  closeButton: false,
+  closeOnClick: false,
+});
 
 const loadModel = async (coords: LngLatLike) => {
   const modelAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat(
@@ -300,110 +347,98 @@ const loadModel = async (coords: LngLatLike) => {
     altitude
   );
 
-  const maplibre = new maplibregl.Map({
-    container: 'map', // container id
-    style: '../../../../resources/private/styles/satellite.json',
-    center: coords,
-    zoom: 16,
-    pitch: 45,
-    bearing: -17.6,
-    doubleClickZoom: false,
-  });
-
-  if (maplibre.getLayer('3dmodel')) {
-    maplibre.removeLayer('3dmodel');
+  if (maplibre.getLayer('3d-model')) {
+    maplibre.removeLayer('3d-model');
   }
-
-  const modelTransform = {
-    translateX: modelAsMercatorCoordinate.x,
-    translateY: modelAsMercatorCoordinate.y,
-    translateZ: modelAsMercatorCoordinate.z,
-    rotateX: rotation[0],
-    rotateY: rotation[1],
-    rotateZ: rotation[2],
-    scale: modelAsMercatorCoordinate.meterInMercatorCoordinateUnits() * 100,
-  };
-
-  const popup = new maplibregl.Popup({
-    closeButton: false,
-    closeOnClick: false,
-  });
 
   const layerCamera = new THREE.Camera();
 
-  const layerRenderer = new THREE.WebGLRenderer({
-    canvas: maplibre.getCanvas(),
-    context: maplibre.getCanvas().getContext('webgl') as WebGLRenderingContext,
-    antialias: true,
-    alpha: true,
-  });
-
-  let childrenCount = 0;
-  let prevChildrenCount = 0;
-
   const customLayer: CustomLayerInterface = {
-    id: '3dmodel',
+    id: '3d-model',
     type: 'custom',
     renderingMode: '3d',
-    async onAdd() {
+
+    onAdd() {
       layerRenderer.autoClear = false;
-      world.scene.three.add(axesHelper);
-      world.scene.three.add(redBox);
     },
-    async render(_, matrix) {
+
+    // RAYCASTING: https://jsfiddle.net/5vpL7ays/7/
+    // RAYCASTING: https://stackoverflow.com/questions/59163141/raycast-in-three-js-with-only-a-projection-matrix/61642776#61642776
+
+    render(_, matrix) {
+      const angle = document.getElementById('angle-slider') as HTMLInputElement;
+      const angleValue = angle.value;
+      const angleNumber = parseFloat(angleValue);
+      const angleInRadians = (angleNumber * Math.PI) / -180;
+
+      const offsetFromCenterElevation =
+        maplibre.queryTerrainElevation(sceneOrigin) || 0;
+      const sceneOriginMercator = maplibregl.MercatorCoordinate.fromLngLat(
+        sceneOrigin,
+        offsetFromCenterElevation
+      );
+
+      const sceneTransform = {
+        translateX: modelAsMercatorCoordinate.x,
+        translateY: modelAsMercatorCoordinate.y,
+        translateZ: maplibregl.MercatorCoordinate.fromLngLat(coords, altitude)
+          .z,
+        scale: sceneOriginMercator.meterInMercatorCoordinateUnits(),
+      };
+
       const rotationX = new THREE.Matrix4().makeRotationAxis(
         new THREE.Vector3(1, 0, 0),
-        modelTransform.rotateX
+        Math.PI / 2
       );
       const rotationY = new THREE.Matrix4().makeRotationAxis(
         new THREE.Vector3(0, 1, 0),
-        modelTransform.rotateY
-      );
-      const rotationZ = new THREE.Matrix4().makeRotationAxis(
-        new THREE.Vector3(0, 0, 1),
-        modelTransform.rotateZ
+        angleInRadians
       );
 
-      const projectionMatrix = new THREE.Matrix4().fromArray(
+      altitude =
+        maplibre.queryTerrainElevation(modelLocation) !== null
+          ? (maplibre.queryTerrainElevation(modelLocation) ?? 0) +
+            dynamicAltitude
+          : dynamicAltitude;
+
+      altitudeLabel.textContent = altitude.toFixed(1).toString();
+
+      const m = new THREE.Matrix4().fromArray(
         matrix.defaultProjectionData.mainMatrix
       );
-      const transformationMatrix = new THREE.Matrix4()
+      const dynamicTransform = {
+        x: sceneTransform.translateX,
+        y: sceneTransform.translateY,
+        z: sceneTransform.translateZ,
+      };
+
+      const l = new THREE.Matrix4()
         .makeTranslation(
-          modelTransform.translateX,
-          modelTransform.translateY,
-          modelTransform.translateZ
+          dynamicTransform.x,
+          dynamicTransform.y,
+          dynamicTransform.z
         )
         .scale(
           new THREE.Vector3(
-            modelTransform.scale,
-            -modelTransform.scale,
-            modelTransform.scale
+            sceneTransform.scale,
+            -sceneTransform.scale,
+            sceneTransform.scale
           )
         )
         .multiply(rotationX)
-        .multiply(rotationY)
-        .multiply(rotationZ);
+        .multiply(rotationY);
 
-      layerCamera.projectionMatrix =
-        projectionMatrix.multiply(transformationMatrix);
-
+      layerCamera.projectionMatrix = m.multiply(l);
       layerRenderer.resetState();
-
-      childrenCount = world.scene.three.children.length;
-      if (childrenCount > prevChildrenCount) {
-        fragments.update(true);
-      }
-
-      const scene = await world.scene.three;
-
-      layerRenderer.render(scene, layerCamera);
-
+      layerRenderer.render(threeScene, layerCamera);
       maplibre.triggerRepaint();
-      prevChildrenCount = childrenCount;
     },
   };
 
-  async function setMarker(center: number[]) {
+  async function setMarker(coords: number[]) {
+    if (!Array.isArray(coords) || coords.some(isNaN)) return;
+    console.log('COORS: ', coords);
+
     const loadedLayer = maplibre.getLayer('places');
 
     if (loadedLayer) {
@@ -412,13 +447,16 @@ const loadModel = async (coords: LngLatLike) => {
       maplibre.removeImage('custom-marker');
     }
 
+    // const image = await maplibre.loadImage(
+    //   'https://maplibre.org/maplibre-gl-js/docs/assets/custom_marker.png'
+    // );
     const image = await maplibre.loadImage(
-      'https://maplibre.org/maplibre-gl-js/docs/assets/custom_marker.png'
+      '../../../../resources/images/ifc-logo.png'
     );
 
     maplibre.addImage('custom-marker', image.data);
 
-    maplibre.addSource('places', {
+    const source: SourceSpecification = {
       type: 'geojson',
       data: {
         type: 'Feature',
@@ -427,28 +465,45 @@ const loadModel = async (coords: LngLatLike) => {
         },
         geometry: {
           type: 'Point',
-          coordinates: center as number[],
+          coordinates: coords as number[],
         },
       },
-    });
+    };
 
-    maplibre.addLayer({
+    maplibre.addSource('places', source);
+
+    const layer: CustomLayerInterface = {
       id: 'places',
       type: 'symbol',
       source: 'places',
       layout: {
         'icon-image': 'custom-marker',
         'icon-overlap': 'always',
+        'icon-size': 0.2,
       },
-    });
+    };
+
+    console.log('Setting new marker: ', coords, layer, source);
+    maplibre.addLayer(layer);
   }
+
+  let styleLoaded = false;
 
   maplibre.on('style.load', () => {
     maplibre.addLayer(customLayer);
+    if (styleLoaded) return;
+
+    altitude = maplibre.queryTerrainElevation(sceneOrigin);
+    console.log('Altitude: ', altitude);
+
+    styleLoaded = true;
   });
 
+  const isLoaded = maplibre.isStyleLoaded();
+  if (isLoaded) maplibre.addLayer(customLayer);
+
   maplibre.on('load', async () => {
-    setMarker(coords as number[]);
+    if (!maplibre.getLayer('custom-marker')) setMarker(coords as number[]);
 
     let holdPopup = false;
 
@@ -486,26 +541,15 @@ const loadModel = async (coords: LngLatLike) => {
     maplibre.on('dblclick', (e) => {
       if (holdPopup) {
         loadModel(e.lngLat);
-        console.log(e);
-        setMarker([e.lngLat.lng, e.lngLat.lat]);
+        setMarker([e.lngLat.lng, e.lngLat.lat] as number[]);
         popup.remove();
 
-        console.log(e.lngLat);
-
         maplibre.getCanvas().style.cursor = '';
-        maplibre.setCenter(e.lngLat);
-        maplibre.setZoom(18);
-        maplibre.setPitch(45);
-        maplibre.setBearing(-17.5);
 
         holdPopup = false;
-
-        setTimeout(() => {
-          maplibre.doubleClickZoom.enable();
-        }, 100);
       }
     });
   });
 };
 
-loadModel(coords);
+loadModel(coords as LngLatLike);

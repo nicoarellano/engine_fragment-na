@@ -5836,9 +5836,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"maplibre-gl@npm:^5.3.0":
-  version: 5.3.0
-  resolution: "maplibre-gl@npm:5.3.0"
+"maplibre-gl@npm:^5.3.1":
+  version: 5.3.1
+  resolution: "maplibre-gl@npm:5.3.1"
   dependencies:
     "@mapbox/geojson-rewind": ^0.5.2
     "@mapbox/jsonlint-lines-primitives": ^2.0.2
@@ -5866,7 +5866,7 @@ __metadata:
     supercluster: ^8.0.1
     tinyqueue: ^3.0.0
     vt-pbf: ^3.1.3
-  checksum: 5c64173a6a1744de2237fc839b0d8007eab92b024fc4f9d98637288c019f9275110d3e400617c0eab4278a071e8956432b5085fce1448ccee4ff55e79dc6ab1c
+  checksum: 1f9af7a5549013c53142d837fd61a7a1621bacdde9dbb064ff01475011a014e36d50ba571796a2e52aa81481f78f0dbd164f3f5efd48d7edae017368fa6b917c
   languageName: node
   linkType: hard
 
@@ -6942,7 +6942,7 @@ __metadata:
   dependencies:
     "@rollup/plugin-terser": ^0.4.4
     "@thatopen/ui": ^2
-    maplibre-gl: ^5.3.0
+    maplibre-gl: ^5.3.1
     stats.js: ^0.17.0
     typescript: 5.4.2
     vite: 5.1.6
